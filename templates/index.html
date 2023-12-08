@@ -1,0 +1,9 @@
+{% extends 'base.html' %} {% block head %}
+
+<h1>This is a h1 tag</h1>
+<form action="/" method="post" enctype="multipart/form-data">
+  <input name="file" type="file" accept="video/*" />
+  <input type="submit" value="Upload" />
+</form>
+
+{% endblock %}
