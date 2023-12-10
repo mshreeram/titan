@@ -1,9 +1,30 @@
 {% extends 'base.html' %} {% block head %}
 
-<h1>This is a h1 tag</h1>
-<form action="/" method="post" enctype="multipart/form-data">
-  <input name="file" type="file" accept="video/*" />
-  <input type="submit" value="Upload" />
+<form id="form" action="/" method="post" enctype="multipart/form-data">
+  <div class="main">
+    <label for="input-file" id="drop-area">
+      <input name="file" type="file" accept="video/*" id="input-file" hidden />
+      <div id="img-view">
+        <img src="{{ url_for('static', filename='508.png') }}" />
+        <p>Drag and Drop <div>or</div> <div class="text-line">Click here to upload video</div></p>
+      </div>
+    </label>
 </form>
+<div class="options">
+  <div class="select-lang">
+    <label for="lang">Choose a language:</label>
+    <select name="lang" id="lang">
+      <option value="hide">-- Select Lang. --</option>
+      <option value="telugu">Telugu</option>
+      <option value="hindi">Hindi</option>
+      <option value="tamil">Tamil</option>
+      <option value="marathi">Marathi</option>
+      <option value="bengali">Bengali</option>
+      <option value="gujarati">Gujarati</option>
+    </select> 
+  </div>
+  <button id="upload">Upload</button>
+  </div>
+</div>
 
 {% endblock %}

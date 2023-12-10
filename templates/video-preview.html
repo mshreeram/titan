@@ -1,0 +1,13 @@
+{% extends 'base.html' %} {% block head %}
+
+<div class="main">
+  <video id="translated" width="300" height="300" controls>
+    <source src="{{ url_for('video_stream') }}" />
+  </video>
+
+  <form action="/download" method="post">
+    <button type="submit" id="upload">Download</button>
+  </form>
+</div>
+
+{% endblock %}
