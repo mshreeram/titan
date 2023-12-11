@@ -1,8 +1,9 @@
 {% extends 'base.html' %} {% block head %}
-
 <div class="main">
   <video id="translated" width="300" height="300" controls>
-    <source src="{{ url_for('video_stream') }}" />
+    <source
+      src="{{ url_for('static', filename='outdir/dubbedVideos/' + filename + '.mp4') }}"
+    />
   </video>
 
   <form action="/download" method="post">

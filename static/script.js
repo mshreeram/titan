@@ -3,7 +3,8 @@ const inputFile = document.getElementById("input-file");
 const imgView = document.getElementById("img-view");
 const upload = document.getElementById("upload");
 const lang = document.getElementById("lang");
-const form = document.getElementById("form");
+const lang2 = document.getElementById("lang-2");
+const form = document.getElementById("form").reset();
 
 inputFile.addEventListener("change", uploadImage);
 
@@ -48,6 +49,12 @@ upload.addEventListener("click", (e) => {
   if (lang.value === "hide") {
     alert("Please select a language");
     e.preventDefault();
+    return;
+  }
+  if (lang2.value === "hide") {
+    alert("Please select a voice");
+    e.preventDefault();
+    return;
   } else {
     form.submit();
   }

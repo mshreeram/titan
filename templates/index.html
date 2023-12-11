@@ -9,22 +9,41 @@
         <p>Drag and Drop <div>or</div> <div class="text-line">Click here to upload video</div></p>
       </div>
     </label>
-</form>
-<div class="options">
-  <div class="select-lang">
-    <label for="lang">Choose a language:</label>
-    <select name="lang" id="lang">
-      <option value="hide">-- Select Lang. --</option>
-      <option value="telugu">Telugu</option>
-      <option value="hindi">Hindi</option>
-      <option value="tamil">Tamil</option>
-      <option value="marathi">Marathi</option>
-      <option value="bengali">Bengali</option>
-      <option value="gujarati">Gujarati</option>
-    </select> 
+
+    <div class="options">
+      <div class="language-selection">
+        <div class="select-lang">
+          <label for="lang">Choose a language:</label>
+          <select name="lang" id="lang">
+            <option value="hide">-- Select Lang. --</option>
+            <option value="te-IN">Telugu</option>
+            <option value="hi-IN">Hindi</option>
+            <option value="ta-IN">Tamil</option>
+            <option value="mr-IN">Marathi</option>
+            <option value="bn-IN">Bengali</option>
+            <option value="gu-IN">Gujarati</option>
+          </select> 
+        </div>
+        
+        <div class="select-lang">
+          <label for="lang">Type:</label>
+          <select name="voice" id="lang-2">
+            <option value="hide">-- Select Voice --</option>
+            <option value="A">Female</option>
+            <option value="B">Male</option>
+          </select> 
+        </div>
+      </div>
+      <button value="Submit" id="upload">Upload</button>
   </div>
-  <button id="upload">Upload</button>
-  </div>
+  </form>
 </div>
+
+<script>
+  document.querySelector("form").addEventListener("submit", () => loading());
+  function loading() {
+    document.getElementById("preload").classList.add("loading");
+  }
+</script>
 
 {% endblock %}
