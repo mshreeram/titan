@@ -5,7 +5,7 @@
     <label for="input-file" id="drop-area">
       <input name="file" type="file" accept="video/*" id="input-file" hidden />
       <div id="img-view">
-        <img src="{{ url_for('static', filename='508.png') }}" />
+        <img src="{{ url_for('static', filename='upload.png') }}" />
         <p>Drag and Drop <div>or</div> <div class="text-line">Click here to upload video</div></p>
       </div>
     </label>
@@ -32,6 +32,11 @@
             <option value="A">Female</option>
             <option value="B">Male</option>
           </select> 
+        </div>
+
+        <div class="text-super">
+          <input type="checkbox" id="super" name="super" value="True">
+          <label for="super">Select if the video contain <br>text supers</label>
         </div>
       </div>
       <button value="Submit" id="upload">Upload</button>

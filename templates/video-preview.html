@@ -9,6 +9,15 @@
   <form action="/download" method="post">
     <button type="submit" id="upload">Download</button>
   </form>
+
+  {% if translate != None %}
+  <div class="seperator">Video with Translated Text-Supers</div>
+  <video id="translated" width="300" height="300" controls>
+    <source
+      src="{{ url_for('static', filename='outdir/video_with_subtitles.mp4') }}"
+    />
+  </video>
+  {% endif %}
 </div>
 
 {% endblock %}

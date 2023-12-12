@@ -109,3 +109,8 @@ p {
   position: fixed;
   z-index: 100;
 }
+
+.seperator {
+  margin-top: 80px;
+  margin-bottom: 30px;
+}
