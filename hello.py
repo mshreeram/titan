@@ -1,7 +1,7 @@
 from flask import Flask, render_template, url_for, request, send_file, Response
 from fileinput import filename
 from io import BytesIO
-import io, shutil
+import io, shutil, os, glob
 from dubber import dub
 
 app = Flask(__name__)
@@ -28,6 +28,14 @@ def index():
       shutil.rmtree('static/outdir')
     except:
       pass
+
+    try:
+      files = glob.glob('video/*')
+      for f in files:
+        os.remove(f)
+    except:
+      pass
+    
     return render_template('index.html')
 
 
