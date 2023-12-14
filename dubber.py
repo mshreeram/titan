@@ -20,18 +20,22 @@ import html
 # Load config in .env file
 load_dotenv()
 
+def extract_audio(videoPath, outputPath):
 
-def decode_audio(inFile, outFile):
-    """Converts a video file to a wav file.
+    AudioSegment.from_file(videoPath).set_channels(1).export(outputPath, format="wav")
 
-    Args:
-        inFile (String): i.e. my/great/movie.mp4
-        outFile (String): i.e. my/great/movie.wav
-    """
-    if not outFile[-4:] != "wav":
-        outFile += ".wav"
-    AudioSegment.from_file(inFile).set_channels(
-        1).export(outFile, format="wav")
+
+# def decode_audio(inFile, outFile):
+#     """Converts a video file to a wav file.
+
+#     Args:
+#         inFile (String): i.e. my/great/movie.mp4
+#         outFile (String): i.e. my/great/movie.wav
+#     """
+#     if not outFile[-4:] != "wav":
+#         outFile += ".wav"
+#     AudioSegment.from_file(inFile).set_channels(
+#         1).export(outFile, format="wav")
 
 
 def get_transcripts_json(gcsPath, langCode, phraseHints=[], speakerCount=1, enhancedModel=None):
@@ -404,9 +408,9 @@ def dub(
 
     if not f"{baseName}.wav" in outputFiles:
         print("Extracting audio from video")
-        fn = os.path.join(outputDir, baseName + ".wav")
-        decode_audio(videoFile, fn)
-        print(f"Wrote {fn}")
+        outputAudioPath = f"{outputDir}/{baseName}.wav"
+        extract_audio(videoFile, outputAudioPath)
+        print(f"Wrote {outputAudioPath}")
 
     if not f"transcript.json" in outputFiles:
         storageBucket = storageBucket if storageBucket else os.environ['STORAGE_BUCKET']
