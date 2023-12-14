@@ -506,7 +506,3 @@ def dub(
             audioDir, lang), videoFile, outFile, srtPath=srtPath)
 
     print("Done")
-
-
-# if __name__ == "__main__":
-#     fire.Fire(dub)

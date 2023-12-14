@@ -61,19 +61,6 @@ def translate_text(input, targetLang, sourceLang):
     return html.unescape(translated_text)
 
 
-# Modify the existing translate_text function calls in your code
-
-# Replace the following line:
-# sentence[lang] = translate_text(sentence[srcLang], lang, srcLang)
-
-# With the following line:
-
-
-# Continue with the rest of your code...
-
-
-
-
 def decode_audio(inFile, outFile):
     """Converts a video file to a wav file.
 
@@ -558,7 +545,3 @@ def dub(
             audioDir, lang), videoFile, outFile, srtPath=srtPath)
 
     print("Done")
-
-
-# if __name__ == "__main__":
-#     fire.Fire(dub)
