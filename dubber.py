@@ -38,11 +38,11 @@ def extract_audio(videoPath, outputPath):
 #         1).export(outFile, format="wav")
 
 
-def get_transcripts_json(gcsPath, langCode, phraseHints=[], speakerCount=1, enhancedModel=None):
+def get_transcripts(cloudPath, langCode, phraseHints=[], speakerCount=1, enhancedModel=None):
     """Transcribes audio files.
 
     Args:
-        gcsPath (String): path to file in cloud storage (i.e. "gs://audio/clip.mp4")
+        cloudPath (String): path to file in cloud storage (i.e. "gs://audio/clip.mp4")
         langCode (String): language code (i.e. "en-US", see https://cloud.google.com/speech-to-text/docs/languages)
         phraseHints (String[]): list of words that are unusual but likely to appear in the audio file.
         speakerCount (int, optional): Number of speakers in the audio. Only works on English. Defaults to None.
@@ -53,7 +53,7 @@ def get_transcripts_json(gcsPath, langCode, phraseHints=[], speakerCount=1, enha
     """
 
     # Helper function for simplifying Google speech client response
-    def _jsonify(result):
+    def jsonify(result):
         json = []
         for section in result.results:
             data = {
@@ -71,12 +71,12 @@ def get_transcripts_json(gcsPath, langCode, phraseHints=[], speakerCount=1, enha
         return json
 
     client = speech.SpeechClient()  
-    audio = speech.RecognitionAudio(uri=gcsPath)
+    audio = speech.RecognitionAudio(uri=cloudPath)
 
     diarize = speakerCount if speakerCount > 1 else False
     print(f"Diarizing: {diarize}")
     diarizationConfig = speech.SpeakerDiarizationConfig(
-        enable_speaker_diarization=speakerCount if speakerCount > 1 else False,
+        enable_speaker_diarization= diarize,
     )
 
     # In English only, we can use the optimized video model
@@ -99,10 +99,10 @@ def get_transcripts_json(gcsPath, langCode, phraseHints=[], speakerCount=1, enha
     )
     res = client.long_running_recognize(config=config, audio=audio).result()
 
-    return _jsonify(res)
+    return jsonify(res)
 
 def parse_sentence_with_speaker(json, lang):
-    """Takes json from get_transcripts_json and breaks it into sentences
+    """Takes json from get_transcripts and breaks it into sentences
     spoken by a single person. Sentences deliniated by a >= 1 second pause/
 
     Args:
@@ -112,17 +112,11 @@ def parse_sentence_with_speaker(json, lang):
         string[]: [{"sentence": "lalala", "speaker": 1, "start_time": 20, "end_time": 21}]
     """
 
-    # Special case for parsing japanese words
-    def get_word(word, lang):
-        if lang == "ja":
-            return word.split('|')[0]
-        return word
-
     sentences = []
     sentence = {}
     for result in json:
         for i, word in enumerate(result['words']):
-            wordText = get_word(word['word'], lang)
+            wordText = word['word']
             if not sentence:
                 sentence = {
                     lang: [wordText],
@@ -372,14 +366,14 @@ def stitch_audio(sentences, audioDir, movieFile, outFile, srtPath=None, overlayG
     audioFile.close()
 
 def dub(
-        videoFile, outputDir, srcLang, targetLangs=[],
+        videoPath, outputDir, srcLang, targetLangs=[],
         storageBucket=None, phraseHints=[], dubSrc=False,
         speakerCount=1, voices={}, srt=False,
         newDir=False, genAudio=False, noTranslate=False):
     """Translate and dub a movie.
 
     Args:
-        videoFile (String): File to dub
+        videoPath (String): File to dub
         outputDir (String): Directory to write output files
         srcLang (String): Language code to translate from (i.e. "fi")
         targetLangs (list, optional): Languages to translate too, i.e. ["en", "fr"]
@@ -397,19 +391,19 @@ def dub(
         void : Writes dubbed video and intermediate files to outputDir
     """
 
-    baseName = os.path.split(videoFile)[-1].split('.')[0]
-    if newDir:
-        shutil.rmtree(outputDir)
+    videoName = os.path.split(videoPath)[-1].split('.')[0]
+    # if newDir:
+    #     shutil.rmtree(outputDir)
 
     if not os.path.exists(outputDir):
         os.mkdir(outputDir)
 
     outputFiles = os.listdir(outputDir)
 
-    if not f"{baseName}.wav" in outputFiles:
+    if not f"{videoName}.wav" in outputFiles:
         print("Extracting audio from video")
-        outputAudioPath = f"{outputDir}/{baseName}.wav"
-        extract_audio(videoFile, outputAudioPath)
+        outputAudioPath = f"{outputDir}/{videoName}.wav"
+        extract_audio(videoPath, outputAudioPath)
         print(f"Wrote {outputAudioPath}")
 
     if not f"transcript.json" in outputFiles:
@@ -420,30 +414,25 @@ def dub(
 
         print("Transcribing audio")
         print("Uploading to the cloud...")
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(storageBucket)
+        storageClient = storage.Client()
+        bucket = storageClient.bucket(storageBucket)
 
-        tmpFile = os.path.join("tmp", str(uuid.uuid4()) + ".wav")
+        tmpFile = f"tmp/{str(uuid.uuid4())}.wav"
         blob = bucket.blob(tmpFile)
-        # Temporary upload audio file to the cloud
-        blob.upload_from_filename(os.path.join(
-            outputDir, baseName + ".wav"), content_type="audio/wav")
+        # Temporary upload audio file to the cloud f"{outputDir}/{videoName}.wav"
+        blob.upload_from_filename(f"{outputDir}/{videoName}.wav", content_type="audio/wav")
 
         print("Transcribing...")
-        print(srcLang)
-        transcripts = get_transcripts_json(os.path.join(
-            "gs://", storageBucket, tmpFile), srcLang,
-            phraseHints=phraseHints,
-            speakerCount=speakerCount)
+        
+        transcripts = get_transcripts(f"gs://{storageBucket}/{tmpFile}", srcLang, phraseHints=phraseHints, speakerCount=speakerCount)
         print(transcripts)
-        json.dump(transcripts, open(os.path.join(
-            outputDir, "transcript.json"), "w"))
+        json.dump(transcripts, open(f"{outputDir}/transcript.json", "w"))
 
         sentences = parse_sentence_with_speaker(transcripts, srcLang)
-        fn = os.path.join(outputDir, baseName + ".json")
-        with open(fn, "w") as f:
+        sentencePath = f"{outputDir}/{videoName}.json"
+        with open(sentencePath, "w") as f:
             json.dump(sentences, f)
-        print(f"Wrote {fn}")
+
         print("Deleting cloud file...")
         blob.delete()
 
@@ -457,21 +446,19 @@ def dub(
         print(
             f"Wrote srt subtitles to {os.path.join(outputDir, 'subtitles.srt')}")
 
-    sentences = json.load(open(os.path.join(outputDir, baseName + ".json")))
-    sentence = sentences[0]
+    sentences = json.load(open(f"{outputDir}/{videoName}.json"))
+    
+    
+    for lang in targetLangs:
+        print(f"Translating to {lang}")
+        for sentence in sentences:
+            sentence[lang] = translate_text(sentence[srcLang], lang, srcLang)
+            print(f"text={sentence[lang]}\n")
 
-    if not noTranslate:
-        for lang in targetLangs:
-            print(f"Translating to {lang}")
-            for sentence in sentences:
-                sentence[lang] = translate_text(
-                    sentence[srcLang], lang, srcLang)
-                print(f"text={sentence[lang]}\n")
-
-        # Write the translations to json
-        fn = os.path.join(outputDir, baseName + ".json")
-        with open(fn, "w") as f:
-            json.dump(sentences, f)
+    # Write the translations to json
+    sentencePath = f"{outputDir}/{videoName}.json"
+    with open(sentencePath, "w") as f:
+        json.dump(sentences, f)
 
     audioDir = os.path.join(outputDir, "audioClips")
     if not "audioClips" in outputFiles:
@@ -505,8 +492,8 @@ def dub(
 
     for lang in targetLangs:
         print(f"Dubbing audio for {lang}")
-        outFile = os.path.join(dubbedDir, baseName + "[" + lang + "]" + ".mp4")
+        outFile = os.path.join(dubbedDir, videoName + "[" + lang + "]" + ".mp4")
         stitch_audio(sentences, os.path.join(
-            audioDir, lang), videoFile, outFile, srtPath=srtPath)
+            audioDir, lang), videoPath, outFile, srtPath=srtPath)
 
     print("Done")
