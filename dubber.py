@@ -38,7 +38,7 @@ def extract_audio(videoPath, outputPath):
 #         1).export(outFile, format="wav")
 
 
-def get_transcripts(cloudPath, langCode, phraseHints=[], speakerCount=1, enhancedModel=None):
+def get_transcripts(cloudPath, langCode, phraseHints=[], speakerCount=1):
     """Transcribes audio files.
 
     Args:
@@ -80,9 +80,6 @@ def get_transcripts(cloudPath, langCode, phraseHints=[], speakerCount=1, enhance
     )
 
     # In English only, we can use the optimized video model
-    if langCode == "en":
-        enhancedModel = "video"
-
     config = speech.RecognitionConfig(
         language_code="en-US" if langCode == "en" else langCode,
         enable_automatic_punctuation=True,
@@ -93,10 +90,10 @@ def get_transcripts(cloudPath, langCode, phraseHints=[], speakerCount=1, enhance
         }],
         diarization_config=diarizationConfig,
         profanity_filter=True,
-        use_enhanced=True if enhancedModel else False,
-        model="video" if enhancedModel else None
-
+        use_enhanced=True,
+        model="video"
     )
+
     res = client.long_running_recognize(config=config, audio=audio).result()
 
     return jsonify(res)
@@ -151,7 +148,7 @@ def parse_sentence_with_speaker(json, lang):
     return sentences
 
 
-def translate_text(input, targetLang, sourceLang=None):
+def translate_text(input, targetLang):
     """Translates from sourceLang to targetLang. If sourceLang is empty,
     it will be auto-detected.
 
@@ -166,7 +163,7 @@ def translate_text(input, targetLang, sourceLang=None):
 
     translate_client = translate.Client()
     result = translate_client.translate(
-        input, target_language=targetLang, source_language=sourceLang)
+        input, target_language=targetLang, source_language="en")
 
     return html.unescape(result['translatedText'])
 
@@ -217,7 +214,7 @@ def speak(text, languageCode, voiceName=None, speakingRate=1):
     return response.audio_content
 
 
-def speakUnderDuration(text, languageCode, durationSecs, voiceName=None):
+def text_to_speech(text, languageCode, durationSecs, voiceName=None):
     """Speak text within a certain time limit.
     If audio already fits within duratinSecs, no changes will be made.
 
@@ -232,11 +229,11 @@ def speakUnderDuration(text, languageCode, durationSecs, voiceName=None):
     """
     baseAudio = speak(text, languageCode, voiceName=voiceName)
     assert len(baseAudio)
-    f = tempfile.NamedTemporaryFile(mode="w+b")
-    f.write(baseAudio)
-    f.flush()
-    baseDuration = AudioSegment.from_mp3(f.name).duration_seconds
-    f.close()
+    tempfile = tempfile.NamedTemporaryFile(mode="w+b")
+    tempfile.write(baseAudio)
+    tempfile.flush()
+    baseDuration = AudioSegment.from_mp3(tempfile.name).duration_seconds
+    tempfile.close()
     ratio = baseDuration / durationSecs
 
     # if the audio fits, return it
@@ -251,69 +248,7 @@ def speakUnderDuration(text, languageCode, durationSecs, voiceName=None):
         ratio = 4
     return speak(text, languageCode, voiceName=voiceName, speakingRate=ratio)
 
-
-def toSrt(transcripts, charsPerLine=60):
-    """Converts transcripts to SRT an SRT file. Only intended to work
-    with English.
-
-    Args:
-        transcripts ({}): Transcripts returned from Speech API
-        charsPerLine (int): max number of chars to write per line
-
-    Returns:
-        String srt data
-    """
-
-    """
-    SRT files have this format:
-
-    [Section of subtitles number]
-
-    [Time the subtitle is displayed begins] –> [Time the subtitle is displayed ends]
-
-    [Subtitle]
-
-    Timestamps are in the format:
-
-    [hours]: [minutes]: [seconds], [milliseconds]
-
-    Note: about 60 characters comfortably fit on one line
-    for resolution 1920x1080 with font size 40 pt.
-    """
-
-    def _srtTime(seconds):
-        millisecs = seconds * 1000
-        seconds, millisecs = divmod(millisecs, 1000)
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        return "%d:%d:%d,%d" % (hours, minutes, seconds, millisecs)
-
-    def _toSrt(words, startTime, endTime, index):
-        return f"{index}\n" + _srtTime(startTime) + " --> " + _srtTime(endTime) + f"\n{words}"
-
-    startTime = None
-    sentence = ""
-    srt = []
-    index = 1
-    for word in [word for x in transcripts for word in x['words']]:
-        if not startTime:
-            startTime = word['start_time']
-
-        sentence += " " + word['word']
-
-        if len(sentence) > charsPerLine:
-            srt.append(_toSrt(sentence, startTime, word['end_time'], index))
-            index += 1
-            sentence = ""
-            startTime = None
-
-    if len(sentence):
-        srt.append(_toSrt(sentence, startTime, word['end_time'], index))
-
-    return '\n\n'.join(srt)
-
-
-def stitch_audio(sentences, audioDir, movieFile, outFile, srtPath=None, overlayGain=-30):
+def stitch_audio(sentences, audioDir, videoFile, outFile, overlayGain = -30):
     """Combines sentences, audio clips, and video file into the ultimate dubbed video
 
     Args:
@@ -334,42 +269,31 @@ def stitch_audio(sentences, audioDir, movieFile, outFile, srtPath=None, overlayG
     audioFiles.sort(key=lambda x: int(x.split('.')[0]))
 
     # Grab the computer-generated audio file
-    segments = [AudioSegment.from_mp3(
-        os.path.join(audioDir, x)) for x in audioFiles]
+    segments = [AudioSegment.from_mp3(f"{audioDir}/{x}") for x in audioFiles] 
     # Also, grab the original audio
-    dubbed = AudioSegment.from_file(movieFile)
+    dubbed = AudioSegment.from_file(videoFile)
 
     # Place each computer-generated audio at the correct timestamp
     for sentence, segment in zip(sentences, segments):
-        dubbed = dubbed.overlay(
-            segment, position=sentence['start_time'] * 1000, gain_during_overlay=overlayGain)
+        dubbed = dubbed.overlay(segment, position=sentence['start_time'] * 1000, gain_during_overlay=overlayGain)
+
     # Write the final audio to a temporary output file
     audioFile = tempfile.NamedTemporaryFile()
-    dubbed.export(audioFile)
+    dubbed.export(audioFile.name)
     audioFile.flush()
 
     # Add the new audio to the video and save it
-    clip = VideoFileClip(movieFile)
+    clip = VideoFileClip(videoFile)
     audio = AudioFileClip(audioFile.name)
     clip = clip.set_audio(audio)
-
-    # Add transcripts, if supplied
-    if srtPath:
-        width, height = clip.size[0] * 0.75, clip.size[1] * 0.20
-        def generator(txt): return TextClip(txt, font='Georgia-Regular',
-                                            size=[width, height], color='black', method="caption")
-        subtitles = SubtitlesClip(
-            srtPath, generator).set_pos(("center", "bottom"))
-        clip = CompositeVideoClip([clip, subtitles])
 
     clip.write_videofile(outFile, codec='libx264', audio_codec='aac')
     audioFile.close()
 
 def dub(
         videoPath, outputDir, srcLang, targetLangs=[],
-        storageBucket=None, phraseHints=[], dubSrc=False,
-        speakerCount=1, voices={}, srt=False,
-        newDir=False, genAudio=False, noTranslate=False):
+        storageBucket=None, phraseHints=[],
+        speakerCount=1, voices={}, genAudio=False):
     """Translate and dub a movie.
 
     Args:
@@ -392,8 +316,6 @@ def dub(
     """
 
     videoName = os.path.split(videoPath)[-1].split('.')[0]
-    # if newDir:
-    #     shutil.rmtree(outputDir)
 
     if not os.path.exists(outputDir):
         os.mkdir(outputDir)
@@ -419,11 +341,11 @@ def dub(
 
         tmpFile = f"tmp/{str(uuid.uuid4())}.wav"
         blob = bucket.blob(tmpFile)
+
         # Temporary upload audio file to the cloud f"{outputDir}/{videoName}.wav"
         blob.upload_from_filename(f"{outputDir}/{videoName}.wav", content_type="audio/wav")
 
         print("Transcribing...")
-        
         transcripts = get_transcripts(f"gs://{storageBucket}/{tmpFile}", srcLang, phraseHints=phraseHints, speakerCount=speakerCount)
         print(transcripts)
         json.dump(transcripts, open(f"{outputDir}/transcript.json", "w"))
@@ -436,23 +358,12 @@ def dub(
         print("Deleting cloud file...")
         blob.delete()
 
-    srtPath = os.path.join(outputDir, "subtitles.srt") if srt else None
-    if srt:
-        transcripts = json.load(
-            open(os.path.join(outputDir, "transcript.json")))
-        subtitles = toSrt(transcripts)
-        with open(srtPath, "w") as f:
-            f.write(subtitles)
-        print(
-            f"Wrote srt subtitles to {os.path.join(outputDir, 'subtitles.srt')}")
-
     sentences = json.load(open(f"{outputDir}/{videoName}.json"))
-    
     
     for lang in targetLangs:
         print(f"Translating to {lang}")
         for sentence in sentences:
-            sentence[lang] = translate_text(sentence[srcLang], lang, srcLang)
+            sentence[lang] = translate_text(sentence[srcLang], lang)
             print(f"text={sentence[lang]}\n")
 
     # Write the translations to json
@@ -460,40 +371,33 @@ def dub(
     with open(sentencePath, "w") as f:
         json.dump(sentences, f)
 
-    audioDir = os.path.join(outputDir, "audioClips")
+    audioDir = f"{outputDir}/audioClips"
     if not "audioClips" in outputFiles:
         os.mkdir(audioDir)
 
-    # whether or not to also dub the source language
-    if dubSrc:
-        targetLangs += [srcLang]
-
     for lang in targetLangs:
-        languageDir = os.path.join(audioDir, lang)
-        if os.path.exists(languageDir):
-            if not genAudio:
-                continue
-            shutil.rmtree(languageDir)
-        os.mkdir(languageDir)
+        languageDir = f"{audioDir}/{lang}"
+        # if os.path.exists(languageDir):
+        #     if not genAudio:
+        #         continue
+        #     shutil.rmtree(languageDir)
+        # os.mkdir(languageDir)
         print(f"Synthesizing audio for {lang}")
         for i, sentence in enumerate(sentences):
             voiceName = voices[lang] if lang in voices else None
-            audio = speakUnderDuration(
-                sentence[lang], lang, sentence['end_time'] -
-                sentence['start_time'],
-                voiceName=voiceName)
-            with open(os.path.join(languageDir, f"{i}.mp3"), 'wb') as f:
+            audio = text_to_speech(sentence[lang], lang, sentence['end_time'] - sentence['start_time'], voiceName=voiceName)
+
+            with open(f"{languageDir}/{i}.mp3", 'wb') as f: 
                 f.write(audio)
 
-    dubbedDir = os.path.join(outputDir, "dubbedVideos")
+    dubbedDir = f"{outputDir}/dubbedVideos" 
 
     if not "dubbedVideos" in outputFiles:
         os.mkdir(dubbedDir)
 
     for lang in targetLangs:
         print(f"Dubbing audio for {lang}")
-        outFile = os.path.join(dubbedDir, videoName + "[" + lang + "]" + ".mp4")
-        stitch_audio(sentences, os.path.join(
-            audioDir, lang), videoPath, outFile, srtPath=srtPath)
+        outFile = f"{dubbedDir}/{videoName}[{lang}].mp4"
+        stitch_audio(sentences, f"{audioDir}/{lang}", videoPath, outFile) 
 
     print("Done")
